@@ -49,3 +49,84 @@ jobs:
           name: coverage
           path: coverage/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # SAST : analyse statique du code source avec Semgrep.
+  # Bloquant si une règle de sévérité ERROR (= haute) est déclenchée.
+  # ---------------------------------------------------------------------------
+  sast:
+    name: SAST (Semgrep)
+    needs: build-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Image officielle épinglée sur une version précise (pas de "latest").
+    container:
+      image: semgrep/semgrep:1.180.0
+    permissions:
+      contents: read
+      security-events: write # uniquement pour publier le SARIF dans l'onglet Security
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Scan Semgrep (bloquant sur sévérité ERROR)
+        # --severity ERROR : ne retient que les règles de sévérité haute
+        # --error          : code de sortie 1 si au moins un résultat -> job en échec
+        run: >
+          semgrep scan
+          --config p/javascript
+          --config p/nodejs
+          --config p/expressjs
+          --config p/secrets
+          --exclude node_modules --exclude coverage
+          --severity ERROR
+          --error
+          --metrics=off
+          --sarif-output=semgrep.sarif
+
+      - name: Publication du rapport SARIF (onglet Security)
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Archivage du rapport Semgrep
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # SCA : analyse des dépendances npm (package-lock.json) avec Trivy.
+  # Bloquant si une vulnérabilité CRITICAL ou HIGH est connue.
+  # ---------------------------------------------------------------------------
+  sca:
+    name: SCA (Trivy)
+    needs: build-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Récupération du code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Scan Trivy du système de fichiers (bloquant sur CRITICAL/HIGH)
+        # Action tierce épinglée par SHA de commit (= v0.36.0) : ses tags ont été
+        # réécrits lors d'une attaque supply chain en mars 2026, un tag n'est donc
+        # pas une garantie d'intégrité.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.75.0
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          exit-code: '1'
+          ignore-unfixed: false
+          format: table
