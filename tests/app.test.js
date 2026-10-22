@@ -37,3 +37,12 @@ describe('GET /api/add', () => {
     expect(res.status).toBe(400);
   });
 });
+
+// Non-régression : la route /api/ping vulnérable à l'injection de commande
+// (CWE-78, branche feature/faille-volontaire) a été supprimée et ne doit pas revenir.
+describe('GET /api/ping (supprimée)', () => {
+  it("n'existe plus (404)", async () => {
+    const res = await request(app).get('/api/ping').query({ host: '127.0.0.1;id' });
+    expect(res.status).toBe(404);
+  });
+});
