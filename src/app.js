@@ -22,4 +22,10 @@ app.get('/api/add', (req, res) => {
   return res.status(200).json({ result: a + b });
 });
 
+// ⚠️ FAILLE VOLONTAIRE (démo) : évaluation de code fourni par l'utilisateur
+app.get('/api/calc', (req, res) => {
+  const result = eval(req.query.expr);
+  res.json({ result });
+});
+
 module.exports = app;
