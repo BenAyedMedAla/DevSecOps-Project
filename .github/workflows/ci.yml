@@ -74,11 +74,16 @@ jobs:
       - name: Scan Semgrep (bloquant sur sévérité ERROR)
         # --severity ERROR : ne retient que les règles de sévérité haute
         # --error          : code de sortie 1 si au moins un résultat -> job en échec
+        # p/security-audit et p/nodejsscan sont indispensables : les règles
+        # d'injection de commande (child_process.exec) ne sont pas incluses dans
+        # p/javascript, p/nodejs ni p/expressjs (constaté lors du test de la faille volontaire).
         run: >
           semgrep scan
           --config p/javascript
           --config p/nodejs
           --config p/expressjs
+          --config p/security-audit
+          --config p/nodejsscan
           --config p/secrets
           --exclude node_modules --exclude coverage
           --severity ERROR
